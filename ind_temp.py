@@ -8,7 +8,8 @@ from const import (TEMP_ANOMALY_DATA,
                    AGG_DATA_PER_DAY,
                    AGG_DATA_BY_CITY,
                    CLEAR_DATA,
-                   CSV_PATH, REGEXP_PATTERN,
+                   CSV_PATH,
+                   REGEXP_PATTERN,
                    DATE_PATTERN)
 
 
