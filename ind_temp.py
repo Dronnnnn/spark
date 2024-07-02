@@ -3,9 +3,13 @@
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as f
 
-from const import (TEMP_ANOMALY_DATA, WARM_CITIES_DATA,
-                   AGG_DATA_PER_DAY, AGG_DATA_BY_CITY, CLEAR_DATA_PARQUET_NAME,
-                   CSV_PATH, REGEXP_PATTERN, DATE_PATTERN)
+from const import (TEMP_ANOMALY_DATA,
+                   WARM_CITIES_DATA,
+                   AGG_DATA_PER_DAY,
+                   AGG_DATA_BY_CITY,
+                   CLEAR_DATA,
+                   CSV_PATH, REGEXP_PATTERN,
+                   DATE_PATTERN)
 
 
 def create_spark_session():
@@ -28,7 +32,7 @@ def create_spark_session():
     return spark
 
 
-def read_data(spark, filename):
+def read_data(spark: SparkSession, filename: str):
     """
     Read data from a CSV file and add a source file column.
 
@@ -45,7 +49,7 @@ def read_data(spark, filename):
     return raw_df
 
 
-def filtered_df(raw_df):
+def filtered_df(raw_df: DataFrame):
     """
     Filter and transform the raw DataFrame.
 
@@ -71,7 +75,7 @@ def filtered_df(raw_df):
     return clear_df
 
 
-def agg_by_city(clear_df):
+def agg_by_city(clear_df: DataFrame):
     """
     Aggregate data by city.
 
@@ -89,10 +93,11 @@ def agg_by_city(clear_df):
     )
               .orderBy(f.col("city"))
               )
+
     return agg_df
 
 
-def agg_per_day(clear_df):
+def agg_per_day(clear_df: DataFrame):
     """
     Aggregate data per day.
 
@@ -116,7 +121,7 @@ def agg_per_day(clear_df):
     return agg_per_day_df
 
 
-def warm_cities(clear_df):
+def warm_cities(clear_df: DataFrame):
     """
     Filter warm cities based on temperature range.
 
@@ -126,17 +131,20 @@ def warm_cities(clear_df):
     Returns:
         DataFrame: DataFrame of warm cities.
     """
+    warm_weather_filter = (f.col("min_temperature") >= 13) & (f.col("max_temperature") <= 40)
+    
     warm_cities_df = (clear_df.groupBy("city")
                       .agg(
         f.round(f.min("temperature"), 2).alias("min_temperature"),
         f.round(f.max("temperature"), 2).alias("max_temperature"),
     )
-                      .filter((f.col("min_temperature") >= 13) & (f.col("max_temperature") <= 40))
+                      .filter(warm_weather_filter)
                       )
+
     return warm_cities_df
 
 
-def extended_filtered_df(clear_df, agg_per_day_df):
+def extended_filtered_df(clear_df: DataFrame, agg_per_day_df: DataFrame):
     """
     Extend the filtered DataFrame with aggregated data per day.
 
@@ -154,7 +162,7 @@ def extended_filtered_df(clear_df, agg_per_day_df):
     return extended_df
 
 
-def temp_anomalies(extended_df):
+def temp_anomalies(extended_df: DataFrame):
     """
     Identify temperature anomalies.
 
@@ -164,11 +172,13 @@ def temp_anomalies(extended_df):
     Returns:
         DataFrame: DataFrame of temperature anomalies.
     """
+    anomalous_deviation = ((f.col("temperature") > f.col("avg_day_temperature") + 2 * f.col(
+        "stddev_day_temperature")) |
+                 (f.col("temperature") < f.col("avg_day_temperature") - 2 * f.col(
+                     "stddev_day_temperature")))
+
     df = extended_df.withColumn("is_anomaly",
-                                (f.col("temperature") > f.col("avg_day_temperature") + 2 * f.col(
-                                    "stddev_day_temperature")) |
-                                (f.col("temperature") < f.col("avg_day_temperature") - 2 * f.col(
-                                    "stddev_day_temperature")))
+                                anomalous_deviation)
 
     anomalies_df = (df.filter(f.col("is_anomaly"))
                     .select(f.col("city"), f.col("date"),
@@ -209,7 +219,7 @@ def main():
     raw_df = read_data(spark, CSV_PATH)
 
     clear_df = filtered_df(raw_df)
-    write_data_to_parquet(clear_df, CLEAR_DATA_PARQUET_NAME)
+    write_data_to_parquet(clear_df, CLEAR_DATA)
 
     agg_df = agg_by_city(clear_df)
     write_data_to_csv(agg_df, AGG_DATA_BY_CITY)

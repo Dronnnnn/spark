@@ -19,6 +19,7 @@ def spark():
     """
     Pytest fixture for creating a Spark session.
     """
+
     return (SparkSession.builder
             .appName("PySparkTests")
             .getOrCreate())
@@ -30,6 +31,7 @@ def raw_test_df(spark):
     Pytest fixture for creating a DataFrame with raw test data.
     """
     timezone = "+03:00"
+
     return spark.createDataFrame([
         Row(source_file="some/dir/City1.csv", temperature_2m='22',
             date=f"2024-06-14 15:00:00{timezone}"),
@@ -62,6 +64,7 @@ def clear_test_df(spark):
         StructField("temperature", FloatType(), True),
         StructField("date", TimestampType(), True)
     ])
+
     return spark.createDataFrame([
         Row(city="City1", temperature=22.0, date=datetime(2024, 6, 14, 15, 0)),
         Row(city="City1", temperature=24.0, date=datetime(2024, 6, 14, 16, 0)),
@@ -86,6 +89,7 @@ def agg_test_df(spark):
         StructField("max_temperature", FloatType(), True),
         StructField("min_temperature", FloatType(), True),
     ])
+
     return spark.createDataFrame([
         Row(city="City1", avg_temperature=23.0, max_temperature=24.0, min_temperature=22.0),
         Row(city="City2", avg_temperature=21.43, max_temperature=48.0, min_temperature=12.0),
@@ -105,6 +109,7 @@ def agg_test_per_day_df(spark):
         StructField("min_day_temperature", FloatType(), True),
         StructField("stddev_day_temperature", DoubleType(), True),
     ])
+
     return spark.createDataFrame([
         Row(city="City1", date_only=datetime(2024, 6, 14),
             avg_day_temperature=23.0, max_day_temperature=24.0, min_day_temperature=22.0,
@@ -125,6 +130,7 @@ def warm_cities_test_df(spark):
         StructField("min_temperature", FloatType(), True),
         StructField("max_temperature", FloatType(), True),
     ])
+
     return spark.createDataFrame([
         Row(city="City1", min_temperature=22.0, max_temperature=24.0, )
     ], schema)
@@ -145,6 +151,7 @@ def extended_filtered_test_df(spark):
         StructField("min_day_temperature", FloatType(), True),
         StructField("stddev_day_temperature", DoubleType(), True),
     ])
+
     return spark.createDataFrame([
         Row(city="City1", date_only=datetime(2024, 6, 14), temperature=22.0,
             date=datetime(2024, 6, 14, 15, 0),
@@ -196,6 +203,7 @@ def anomalies_test_df(spark):
         StructField("temperature", FloatType(), True),
         StructField("avg_day_temperature", DoubleType(), True),
     ])
+
     return spark.createDataFrame([
         Row(city="City2", date=datetime(2024, 6, 14, 21, 0), temperature=48.0,
             avg_day_temperature=21.43),
