@@ -3,14 +3,16 @@
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql import functions as f
 
-from const import (TEMP_ANOMALY_DATA,
-                   WARM_CITIES_DATA,
-                   AGG_DATA_PER_DAY,
-                   AGG_DATA_BY_CITY,
-                   CLEAR_DATA,
-                   CSV_PATH,
-                   REGEXP_PATTERN,
-                   DATE_PATTERN)
+from .const import (
+    TEMP_ANOMALY_DATA,
+    WARM_CITIES_DATA,
+    AGG_DATA_PER_DAY,
+    AGG_DATA_BY_CITY,
+    CLEAR_DATA,
+    CSV_PATH,
+    REGEXP_PATTERN,
+    DATE_PATTERN
+)
 
 
 def create_spark_session():
@@ -66,11 +68,15 @@ def filtered_df(raw_df: DataFrame):
                      .withColumn('date', f.to_timestamp(f.col("date"), DATE_PATTERN))
                      )
 
-    clear_df = (ind_cities_df.select(
-        f.col('file_name').alias('city'),
-        f.col('temperature'),
-        f.col('date')).orderBy('city', 'date')
-                )
+    clear_df = (
+        ind_cities_df
+        .select(
+            f.col('file_name').alias('city'),
+            f.col('temperature'),
+            f.col('date')
+        )
+        .orderBy('city', 'date')
+    )
     clear_df.repartition(200)
 
     return clear_df
@@ -86,14 +92,16 @@ def agg_by_city(clear_df: DataFrame):
     Returns:
         DataFrame: Aggregated DataFrame by city.
     """
-    agg_df = (clear_df.groupBy("city")
-              .agg(
-        f.round(f.avg("temperature"), 2).alias("avg_temperature"),
-        f.round(f.max("temperature"), 2).alias("max_temperature"),
-        f.round(f.min("temperature"), 2).alias("min_temperature")
+    agg_df = (
+        clear_df
+        .groupBy("city")
+        .agg(
+            f.round(f.avg("temperature"), 2).alias("avg_temperature"),
+            f.round(f.max("temperature"), 2).alias("max_temperature"),
+            f.round(f.min("temperature"), 2).alias("min_temperature")
+        )
+        .orderBy(f.col("city"))
     )
-              .orderBy(f.col("city"))
-              )
 
     return agg_df
 
@@ -108,16 +116,17 @@ def agg_per_day(clear_df: DataFrame):
     Returns:
         DataFrame: Aggregated DataFrame per day.
     """
-    agg_per_day_df = (clear_df.withColumn("date_only", f.to_date(f.col("date")))
-                      .groupBy("city", "date_only")
-                      .agg(
-        f.round(f.avg("temperature"), 2).alias("avg_day_temperature"),
-        f.round(f.max("temperature"), 2).alias("max_day_temperature"),
-        f.round(f.min("temperature"), 2).alias("min_day_temperature"),
-        f.round(f.stddev("temperature"), 2).alias("stddev_day_temperature")
+    agg_per_day_df = (
+        clear_df.withColumn("date_only", f.to_date(f.col("date")))
+        .groupBy("city", "date_only")
+        .agg(
+            f.round(f.avg("temperature"), 2).alias("avg_day_temperature"),
+            f.round(f.max("temperature"), 2).alias("max_day_temperature"),
+            f.round(f.min("temperature"), 2).alias("min_day_temperature"),
+            f.round(f.stddev("temperature"), 2).alias("stddev_day_temperature")
+        )
+        .orderBy(f.col("city"), f.col("date_only"))
     )
-                      .orderBy(f.col("city"), f.col("date_only"))
-                      )
 
     return agg_per_day_df
 
@@ -133,14 +142,16 @@ def warm_cities(clear_df: DataFrame):
         DataFrame: DataFrame of warm cities.
     """
     warm_weather_filter = (f.col("min_temperature") >= 13) & (f.col("max_temperature") <= 40)
-    
-    warm_cities_df = (clear_df.groupBy("city")
-                      .agg(
-        f.round(f.min("temperature"), 2).alias("min_temperature"),
-        f.round(f.max("temperature"), 2).alias("max_temperature"),
+
+    warm_cities_df = (
+        clear_df
+        .groupBy("city")
+        .agg(
+            f.round(f.min("temperature"), 2).alias("min_temperature"),
+            f.round(f.max("temperature"), 2).alias("max_temperature")
+        )
+        .filter(warm_weather_filter)
     )
-                      .filter(warm_weather_filter)
-                      )
 
     return warm_cities_df
 
@@ -173,23 +184,34 @@ def temp_anomalies(extended_df: DataFrame):
     Returns:
         DataFrame: DataFrame of temperature anomalies.
     """
-    anomalous_deviation = ((f.col("temperature") > f.col("avg_day_temperature") + 2 * f.col(
-        "stddev_day_temperature")) |
-                 (f.col("temperature") < f.col("avg_day_temperature") - 2 * f.col(
-                     "stddev_day_temperature")))
+    double_stdev = 2 * f.col("stddev_day_temperature")
 
-    df = extended_df.withColumn("is_anomaly",
-                                anomalous_deviation)
+    upper_deviation = (
+            f.col("temperature") > f.col("avg_day_temperature") + double_stdev
+    )
+    lower_deviation = (
+            f.col("temperature") < f.col("avg_day_temperature") - double_stdev
+    )
 
-    anomalies_df = (df.filter(f.col("is_anomaly"))
-                    .select(f.col("city"), f.col("date"),
-                            f.col("temperature"), f.col("avg_day_temperature"))
-                    .orderBy(f.col("city"), f.col("date")))
+    anomalous_deviation = upper_deviation | lower_deviation
+
+    df = extended_df.withColumn("is_anomaly", anomalous_deviation)
+
+    anomalies_df = (
+        df
+        .filter(f.col("is_anomaly"))
+        .select(
+            f.col("city"),
+            f.col("date"),
+            f.col("temperature"),
+            f.col("avg_day_temperature"))
+        .orderBy(f.col("city"), f.col("date"))
+    )
 
     return anomalies_df
 
 
-def write_data_to_csv(df_csv: DataFrame, writing_file):
+def write_data_to_csv(df_csv: DataFrame, writing_file: str):
     """
     Write DataFrame to a CSV file.
 
@@ -200,7 +222,7 @@ def write_data_to_csv(df_csv: DataFrame, writing_file):
     df_csv.write.option('header', 'true').mode("overwrite").csv(writing_file)
 
 
-def write_data_to_parquet(df_parquet: DataFrame, writing_file):
+def write_data_to_parquet(df_parquet: DataFrame, writing_file: str):
     """
     Write DataFrame to a Parquet file.
 
