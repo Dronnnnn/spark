@@ -5,13 +5,27 @@ from datetime import datetime
 import pytest
 
 from pyspark.sql import SparkSession
-from pyspark.sql.types import (StructType, StructField, StringType, FloatType,
-                               TimestampType, Row, DoubleType, DateType)
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    FloatType,
+    TimestampType,
+    Row,
+    DoubleType,
+    DateType
+)
 
 from pyspark.testing import assertDataFrameEqual
 
-from ..ind_temp import (filtered_df, agg_by_city, agg_per_day,
-                        warm_cities, extended_filtered_df, temp_anomalies)
+from ..ind_temp import (
+    filtered_df,
+    agg_by_city,
+    agg_per_day,
+    warm_cities,
+    extended_filtered_df,
+    temp_anomalies
+)
 
 
 @pytest.fixture(scope="session")
